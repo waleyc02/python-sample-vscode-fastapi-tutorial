@@ -1,23 +1,47 @@
 from fastapi import FastAPI, Form
-from app.whatsapp import send_whatsapp_message
+from sqlmodel import Session, select
+from app.database import engine, create_db
+from app.models import User, MedicationLog
 
 app = FastAPI()
 
-@app.get("/")
-def home():
-    return {"status": "Tarastack running"}
+create_db()
 
 @app.post("/webhook")
 async def whatsapp_webhook(Body: str = Form(...), From: str = Form(...)):
-    print(f"Message from {From}: {Body}")
 
-    if Body.strip() == "1":
-        reply = "Great 👍 I've logged this."
-    elif Body.strip() == "2":
-        reply = "No problem. I’ll remind you again in 30 minutes."
-    else:
-        reply = "Please reply with 1 (Taken) or 2 (Not yet)."
+    phone = From.replace("whatsapp:", "")
 
-    send_whatsapp_message(From.replace("whatsapp:", ""), reply)
+    with Session(engine) as session:
 
-    return {"status": "ok"}
+        # Ensure user exists
+        statement = select(User).where(User.phone == phone)
+        user = session.exec(statement).first()
+
+        if not user:
+            user = User(phone=phone)
+            session.add(user)
+            session.commit()
+
+        # Handle responses
+        if Body.strip() == "1":
+            log = MedicationLog(phone=phone, response="YES")
+            session.add(log)
+            session.commit()
+            return "Logged as taken. Great job!"
+
+        elif Body.strip() == "2":
+            log = MedicationLog(phone=phone, response="NO")
+            session.add(log)
+            session.commit()
+            return "Noted. Please take it as soon as possible."
+
+        else:
+            return """Hello!
+Reminder:
+- Take Paracetamol
+- Take Blood Tonic
+
+Reply:
+1 - Yes
+2 - No"""
