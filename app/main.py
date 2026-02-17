@@ -1,47 +1,51 @@
+# app/main.py
 from fastapi import FastAPI, Form
-from sqlmodel import Session, select
-from app.database import engine, create_db
-from app.models import User, MedicationLog
+from datetime import datetime
+from .models import User, MedicationLog
+from .database import get_session, init_db
+from .whatsapp import send_whatsapp_message, get_message
+from .scheduler import start_scheduler
 
+# -------------------------------
+# INIT
+# -------------------------------
+init_db()
+start_scheduler()
 app = FastAPI()
-
-create_db()
 
 @app.post("/webhook")
 async def whatsapp_webhook(Body: str = Form(...), From: str = Form(...)):
+    phone = From.replace("whatsapp:", "") if From.startswith("whatsapp:") else From
+    msg = Body.strip()
 
-    phone = From.replace("whatsapp:", "")
-
-    with Session(engine) as session:
-
-        # Ensure user exists
-        statement = select(User).where(User.phone == phone)
-        user = session.exec(statement).first()
-
+    with get_session() as session:
+        user = session.query(User).filter(User.phone == phone).first()
         if not user:
             user = User(phone=phone)
             session.add(user)
             session.commit()
 
-        # Handle responses
-        if Body.strip() == "1":
-            log = MedicationLog(phone=phone, response="YES")
-            session.add(log)
-            session.commit()
-            return "Logged as taken. Great job!"
+        # Default language for new users
+        lang = user.language or "en"
 
-        elif Body.strip() == "2":
-            log = MedicationLog(phone=phone, response="NO")
+        # YES/NO responses
+        timestamp = datetime.utcnow()
+        if msg in ["1", "YES", "yes"]:
+            log = MedicationLog(phone=phone, response="YES", timestamp=timestamp)
             session.add(log)
             session.commit()
-            return "Noted. Please take it as soon as possible."
+            send_whatsapp_message(phone, get_message("yes_response", lang))
+            return "OK"
+
+        elif msg in ["2", "NO", "no"]:
+            log = MedicationLog(phone=phone, response="NO", timestamp=timestamp)
+            session.add(log)
+            session.commit()
+            send_whatsapp_message(phone, get_message("no_response", lang))
+            return "OK"
 
         else:
-            return """Hello!
-Reminder:
-- Take Paracetamol
-- Take Blood Tonic
-
-Reply:
-1 - Yes
-2 - No"""
+            # Send reminder
+            reminder_text = get_message("reminder", lang)
+            send_whatsapp_message(phone, reminder_text)
+            return "OK"
