@@ -1,11 +1,10 @@
-# app/database.py
-from sqlmodel import create_engine, SQLModel, Session
-from .config import DATABASE_URL
+import os
+from sqlmodel import create_engine
 
-engine = create_engine(DATABASE_URL, echo=True)
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-def init_db():
-    SQLModel.metadata.create_all(engine)
-
-def get_session():
-    return Session(engine)
+engine = create_engine(
+    DATABASE_URL,
+    echo=True,
+    pool_pre_ping=True
+)
