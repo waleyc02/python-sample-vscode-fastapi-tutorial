@@ -1,16 +1,17 @@
 # app/scheduler.py
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime
+from apscheduler.triggers.cron import CronTrigger
 from sqlmodel import Session
+from zoneinfo import ZoneInfo
 from .database import engine
 from .models import User
 from .whatsapp import send_whatsapp_message, get_message
 
-scheduler = BackgroundScheduler()
+scheduler = BackgroundScheduler(timezone=ZoneInfo("Europe/London"))
 
 def send_daily_reminders():
-    print("Running daily reminder job...")
+    print("Running scheduled reminder job...")
 
     with Session(engine) as session:
         users = session.query(User).all()
@@ -23,8 +24,8 @@ def send_daily_reminders():
 def start_scheduler():
     scheduler.add_job(
         send_daily_reminders,
-        trigger="interval",
-        hours=24,
-        next_run_time=datetime.now()  # runs immediately on startup
+        CronTrigger(hour=8, minute=0),  # 8:00 AM UK time
+        id="daily_reminder",
+        replace_existing=True
     )
     scheduler.start()
