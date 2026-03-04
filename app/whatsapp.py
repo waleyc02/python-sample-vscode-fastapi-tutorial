@@ -56,11 +56,16 @@ def get_message(key: str, lang: str = DEFAULT_LANGUAGE) -> str:
     return MESSAGES[key][lang]
 
 def send_whatsapp_message(to: str, message: str):
-    """Send WhatsApp message via Twilio"""
+    """Send WhatsApp message via Twilio with delivery tracking"""
+
     if not to.startswith("whatsapp:"):
         to = f"whatsapp:{to}"
-    client.messages.create(
+
+    msg = client.messages.create(
         body=message,
         from_=TWILIO_WHATSAPP_NUMBER,
-        to=to
+        to=to,
+        status_callback="https://tarastack-api.onrender.com/status"
     )
+
+    return msg.sid  # 🔥 Return SID
