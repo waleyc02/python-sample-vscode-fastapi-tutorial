@@ -16,13 +16,14 @@ scheduler = BackgroundScheduler(timezone=ZoneInfo("Europe/London"))
 def send_daily_reminders():
     today = date.today()
     now = datetime.now()
-    current_time = now.time().replace(second=0, microsecond=0)
 
     with Session(engine) as session:
         users = session.query(User).all()
 
         for user in users:
-            if user.reminder_time != current_time:
+            reminder_datetime = datetime.combine(today, user.reminder_time)
+
+            if now < reminder_datetime:
                 continue
 
             # Check if reminder already sent today
